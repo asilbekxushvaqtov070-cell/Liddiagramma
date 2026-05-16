@@ -3,398 +3,479 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { ReactNode, useState, useEffect } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import {
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   CartesianGrid,
   Tooltip,
-  Legend,
   ResponsiveContainer,
   PieChart,
   Pie,
-  Cell
+  Cell,
+  Legend,
+  BarChart,
+  Bar
 } from 'recharts';
 import {
+  Filter,
+  Calendar,
+  RotateCcw,
+  Moon,
+  Sun,
+  LayoutDashboard,
   Users,
-  PhoneCall,
-  Briefcase,
   TrendingUp,
+  MapPin,
+  Trophy,
   ArrowUpRight,
-  ArrowDownRight,
-  Clock,
-  Filter
+  ChevronDown
 } from 'lucide-react';
-import { motion } from 'motion/react';
+import { motion, AnimatePresence } from 'motion/react';
 
-// Data extracted from images
-const CALLS_DATA = [
-  { name: 'Gulnoza 007', incoming: 234, outgoing: 1414, total: 1648, duration: '24:33:43' },
-  { name: 'Valentina', incoming: 17, outgoing: 585, total: 602, duration: '05:01:12' },
-];
+// Import extracted data
+import dashboardData from './data/dashboard_data.json';
 
-const PIPELINE_DATA = [
-  { name: 'Янги Мижоз', count: 60, color: '#0aececff' },
-  { name: 'Алоқа ўрнатилди', count: 4, color: '#6366f1' },
-  { name: 'Ташриф буюрувчилар', count: 3, color: '#f59e0b' },
-  { name: 'Офисга келганлар', count: 0, color: '#10b981' },
-  { name: 'Шартнома', count: 0, color: '#06a340ff' },
-  { name: 'Отказ', count: 6, color: '#e00404ff' },
-];
+const COLORS = {
+  orange: '#f4981d',
+  blue: '#34a8da',
+  green: '#10b981',
+  purple: '#818cf8',
+  red: '#ef4444',
+  slate: '#0f172a'
+};
 
-const COMPANY_STATS = [
-  { name: 'Lorry Group', count: 4 },
-  { name: 'Vodiy Auto Trade', count: 3 },
-  { name: 'Navoiy Trade', count: 3 },
-  { name: 'Ideal truck sales', count: 3 },
-  { name: 'Magistral diesel service', count: 2 },
-  { name: 'Avto group Trading and service', count: 0 },
-  { name: 'Truckexpert global', count: 0 },
-  { name: 'Comptrans Auto Service', count: 0 },
-];
-
-const PIE_DATA = [
-  { name: 'Муваффақиятли', value: 67 },
-  { name: 'Музокарада', value: 133 },
-  { name: 'Рад этилди', value: 6 },
-];
-
-const COLORS = ['#0ef1a6ff', '#0b66faff', '#ee0909ff', '#b97b0eff'];
+const CHART_COLORS = ['#34a8da', '#10b981', '#f4981d', '#818cf8', '#ef4444', '#6366f1'];
 
 export default function App() {
+  const [department, setDepartment] = useState('Барчаси');
+  const [dateRange, setDateRange] = useState({ start: '', end: '' });
+  const [darkMode, setDarkMode] = useState(false);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  if (!mounted) return <div className="min-h-screen bg-slate-50" />;
+  // Filter logic
+  const filteredData = useMemo(() => {
+    return dashboardData.filter((item: any) => {
+      const matchDept = department === 'Барчаси' || item.department === department;
+      const matchStart = !dateRange.start || item.date >= dateRange.start;
+      const matchEnd = !dateRange.end || item.date <= dateRange.end;
+      return matchDept && matchStart && matchEnd;
+    });
+  }, [department, dateRange]);
+
+  // Derived stats
+  const stats = useMemo(() => {
+    const total = filteredData.length;
+    const budget = filteredData.reduce((acc, curr: any) => acc + (curr.budget || 0), 0);
+    const byRegion = filteredData.reduce((acc, curr: any) => {
+      acc[curr.region] = (acc[curr.region] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const sortedRegions = Object.entries(byRegion)
+      .sort((a, b) => (b[1] as number) - (a[1] as number))
+      .slice(0, 8)
+      .map(([name, count]) => ({
+        name,
+        count: count as number,
+        percent: total ? (((count as number) / total) * 100).toFixed(1) : '0'
+      }));
+
+    const byType = filteredData.reduce((acc, curr: any) => {
+      acc[curr.product_type] = (acc[curr.product_type] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const byStatus = filteredData.reduce((acc, curr: any) => {
+      acc[curr.status] = (acc[curr.status] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    const statusData = Object.entries(byStatus).map(([name, value]) => {
+      // Cyrillic mapping for common statuses
+      const statusMap: Record<string, string> = {
+        'QIZIQISH BILDIRGAN YANGI MIJOZ': 'ҚИЗИҚИШ БИЛДИРГАН ЯНГИ МИЖОЗ',
+        'ALOQA O\'RNATLDI': 'АЛОҚА ЎРНАТИЛДИ',
+        'OFISGA TASHRIF BUYURUVCHILAR': 'ОФИСГА ТАШРИФ БУЮРУВЧИЛАР',
+        'OKB': 'ОҚБ',
+        'Inson omili': 'Инсон омили',
+        'Xato raqam': 'Хато рақам',
+        'Batafsil ma\'lumot berildi': 'Батафсил маълумот берилди',
+        'ВЗЯТ В РАБОТУ': 'ИШГА ОЛИНДИ',
+        'ПЕРВИЧНЫЙ КОНТАКТ': 'БИРИНЧИ АЛОҚА',
+        'НУЖНА ОБРАТНАЯ СВЯЗЬ': 'ҚАЙТА АЛОҚА КЕРАК',
+        'ИНФОРМИРОВАН': 'МАЪЛУМОТ БЕРИЛДИ'
+      };
+      return { name: statusMap[name] || name, value };
+    });
+
+    const byDealer = filteredData.reduce((acc, curr: any) => {
+      const resp = curr.responsible || '';
+      const isOperatorFilter = resp === 'Gulnoza 007' || resp === 'Валентина' || resp.includes('Klara');
+
+      if (resp && resp !== 'Администратор' && !resp.includes('Klara')) {
+        // Exclude known operators from Dillerlar section header
+        if (department === 'Диллерлар' && isOperatorFilter) return acc;
+        acc[resp] = (acc[resp] || 0) + 1;
+      }
+      return acc;
+    }, {} as Record<string, number>);
+
+    const sortedDealers = Object.entries(byDealer)
+      .sort((a, b) => (b[1] as number) - (a[1] as number))
+      .slice(0, 5)
+      .map(([name, count], index) => ({
+        name: department === 'Операторлар' ? `${index + 1}-оператор` : name,
+        count: count as number
+      }));
+
+    // Dynamics for AreaChart
+    const dynamics = filteredData.length > 0 ?
+      filteredData.slice().sort((a: any, b: any) => a.date.localeCompare(b.date))
+        .reduce((acc, curr: any) => {
+          const date = curr.date.substring(5); // MM-DD
+          const existing = acc.find(d => d.date === date);
+          if (existing) existing.value += 1;
+          else acc.push({ date, value: 1 });
+          return acc;
+        }, [] as { date: string, value: number }[]).slice(-15)
+      : [];
+
+    // Calls Data (from user screenshot for demonstration)
+    const callsData = department === 'Операторлар' ? [
+      { name: '1-оператор', value: 1648 },
+      { name: '2-оператор', value: 602 }
+    ] : [];
+
+    return { total, budget, sortedRegions, statusData, dynamics, byType, sortedDealers, callsData };
+  }, [filteredData, department]);
+
+  if (!mounted) return null;
 
   return (
-    <div 
-      id="dashboard-root" 
-      className="min-h-screen bg-slate-50 text-slate-900 p-4 md:p-8 font-sans relative"
-      style={{
-        backgroundImage: 'url("/kamaz-bg.jpg")',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundAttachment: 'fixed'
-      }}
-    >
-      {/* Semi-transparent overlay to ensure readability */}
-      <div className="absolute inset-0 bg-white/40 backdrop-blur-[1px] z-0"></div>
+    <div className={`min-h-screen font-sans transition-colors duration-500 ${darkMode ? 'bg-[#0f172a] text-white' : 'bg-[#f8fafc] text-[#0f172a]'}`}>
+      <div className="max-w-[1600px] mx-auto p-4 md:p-6 lg:p-8">
 
-      <div className="relative z-10 max-w-7xl mx-auto">
-        {/* Header */}
-        <header className="mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div>
-            <motion.h1
-              initial={{ opacity: 0, y: -20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="text-5xl font-black tracking-tighter text-slate-900"
-            >
-              Call Center
-            </motion.h1>
-            <p className="text-slate-600 mt-1 font-medium">Кўрсаткичлар ва қўнғироқлар ҳисоботи</p>
+        {/* Top Navigation / Filters */}
+        <header className="flex flex-col lg:flex-row lg:items-center justify-between gap-6 mb-10">
+          <div className="flex items-center gap-4">
+            <div className="bg-orange-500 text-white font-bold p-3 rounded-2xl shadow-lg shadow-orange-500/20">
+              UZ
+            </div>
+            <div>
+              <h1 className="text-3xl font-black tracking-tight uppercase">Call-center</h1>
+              <p className="text-sm font-medium opacity-60">Савдо аналитикаси ва ҳисоботлар панели</p>
+            </div>
           </div>
 
-          <div className="flex items-center gap-3">
-            <button className="flex items-center gap-2 bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm hover:bg-slate-50 transition-all">
-              <Filter size={18} className="text-slate-600" />
-              <span className="font-medium">Фильтр</span>
-            </button>
-            <div className="bg-white border border-slate-200 px-4 py-2 rounded-xl shadow-sm flex items-center gap-2 text-slate-600">
-              <Clock size={18} className="text-blue-600" />
+          <div className="flex flex-wrap items-center gap-4">
+            {/* Department Filter */}
+            <div className="relative group">
+              <select
+                value={department}
+                onChange={(e) => setDepartment(e.target.value)}
+                className={`appearance-none pl-10 pr-10 py-3 rounded-2xl border-none shadow-sm font-bold text-sm cursor-pointer transition-all focus:ring-2 focus:ring-orange-500/50 ${darkMode ? 'bg-slate-800 text-white' : 'bg-white text-slate-800'}`}
+              >
+                <option value="Диллерлар">Диллерлар</option>
+                <option value="Мижозлар билан қайта ишлаш">Мижозлар билан ишлаш</option>
+                <option value="UAT Савдо">UAT Савдо</option>
+                <option value="Операторлар">Операторлар</option>
+              </select>
+              <LayoutDashboard size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-orange-500" />
+              <ChevronDown size={18} className="absolute right-3 top-1/2 -translate-y-1/2 opacity-40" />
             </div>
+
+            {/* Date Range */}
+            <div className={`flex items-center gap-2 p-1 rounded-2xl ${darkMode ? 'bg-slate-800' : 'bg-white shadow-sm'}`}>
+              <div className="flex items-center gap-2 px-3 py-2">
+                <Calendar size={18} className="text-blue-500" />
+                <input
+                  type="date"
+                  value={dateRange.start}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, start: e.target.value }))}
+                  className="bg-transparent border-none text-xs font-bold focus:ring-0 outline-none"
+                />
+              </div>
+              <div className="w-[1px] h-6 bg-slate-200 opacity-20"></div>
+              <div className="flex items-center gap-2 px-3 py-2">
+                <input
+                  type="date"
+                  value={dateRange.end}
+                  onChange={(e) => setDateRange(prev => ({ ...prev, end: e.target.value }))}
+                  className="bg-transparent border-none text-xs font-bold focus:ring-0 outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Actions */}
+            <button
+              onClick={() => { setDepartment('Барчаси'); setDateRange({ start: '', end: '' }) }}
+              className="p-3 rounded-2xl bg-white shadow-sm hover:bg-orange-50 transition-colors text-orange-500"
+            >
+              <RotateCcw size={20} />
+            </button>
+
+            <button
+              onClick={() => setDarkMode(!darkMode)}
+              className={`p-3 rounded-2xl shadow-sm transition-colors ${darkMode ? 'bg-slate-700 text-yellow-400' : 'bg-white text-slate-400'}`}
+            >
+              {darkMode ? <Sun size={20} /> : <Moon size={20} />}
+            </button>
           </div>
         </header>
+        {/* Savdo Holati (Full Width) */}
+        <div className="grid grid-cols-1 gap-8 mb-8">
+          <div className="lg:col-span-12">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-8 rounded-[40px] shadow-sm border border-slate-100/50 h-full ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white'}`}
+            >
+              <div className="flex items-center justify-between mb-10">
+                <div>
+                  <h3 className="font-black text-xs uppercase tracking-widest opacity-60">Савдо Ҳолати</h3>
+                  <p className="text-[10px] opacity-40 font-bold">Ойлик ҳисобот таҳлили</p>
+                </div>
+                <div className="px-3 py-1 bg-slate-50 dark:bg-slate-700 rounded-full text-[10px] font-black opacity-60">2026</div>
+              </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <SummaryCard
-            id="total-calls"
-            title="Жами қўнғироқлар"
-            value="2,254"
-            icon={<PhoneCall className="text-blue-600" />}
-            trend="+12%"
-            trendUp={true}
-          />
-          <SummaryCard
-            id="total-deals"
-            title="Жами битимлар"
-            value="133"
-            icon={<Briefcase className="text-emerald-600" />}
-            trend="+5%"
-            trendUp={true}
-          />
-          <SummaryCard
-            id="conversion-rate"
-            title="Конверсия"
-            value="4.5%"
-            icon={<TrendingUp className="text-amber-600" />}
-            trend="-1%"
-            trendUp={false}
-          />
-          <SummaryCard
-            id="active-users"
-            title="Актив операторлар"
-            value="5"
-            icon={<Users className="text-purple-600" />}
-            trend="0%"
-            trendUp={true}
-          />
+              <div className="h-[350px] w-full relative">
+                {/* Background Glow */}
+                <div className="absolute inset-0 bg-orange-500/5 blur-[100px] rounded-full pointer-events-none" />
+
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={stats.dynamics}>
+                    <defs>
+                      <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={COLORS.orange} stopOpacity={0.4} />
+                        <stop offset="95%" stopColor={COLORS.orange} stopOpacity={0} />
+                      </linearGradient>
+                      <filter id="shadow" height="200%">
+                        <feGaussianBlur in="SourceAlpha" stdDeviation="3" />
+                        <feOffset dx="0" dy="4" result="offsetblur" />
+                        <feComponentTransfer>
+                          <feFuncA type="linear" slope="0.5" />
+                        </feComponentTransfer>
+                        <feMerge>
+                          <feMergeNode />
+                          <feMergeNode in="SourceGraphic" />
+                        </feMerge>
+                      </filter>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#334155" : "#f1f5f9"} />
+                    <XAxis
+                      dataKey="date"
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 10, fontWeight: 700, opacity: 0.5, fill: darkMode ? '#94a3b8' : '#64748b' }}
+                      dy={10}
+                    />
+                    <YAxis
+                      axisLine={false}
+                      tickLine={false}
+                      tick={{ fontSize: 10, fontWeight: 700, opacity: 0.5, fill: darkMode ? '#94a3b8' : '#64748b' }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        borderRadius: '24px',
+                        border: 'none',
+                        background: darkMode ? '#1e293b' : '#ffffff',
+                        boxShadow: '0 20px 50px rgba(0,0,0,0.15)',
+                        fontSize: '11px',
+                        fontWeight: 900,
+                        color: darkMode ? '#f1f5f9' : '#0f172a'
+                      }}
+                      itemStyle={{ color: COLORS.orange }}
+                      cursor={{ stroke: COLORS.orange, strokeWidth: 1, strokeDasharray: '4 4' }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="value"
+                      stroke={COLORS.orange}
+                      strokeWidth={5}
+                      fillOpacity={1}
+                      fill="url(#colorValue)"
+                      filter="url(#shadow)"
+                      animationDuration={2000}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            </motion.div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Calls Chart */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.1 }}
-            className="lg:col-span-2 bg-white/90 border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-sm"
-            id="calls-chart-container"
-          >
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="text-xl font-bold text-slate-800">Операторлар қўнғироқлари</h3>
-            </div>
-            <div className="h-[350px] w-full bg-slate-50/50 rounded-2xl p-4 flex flex-col" id="calls-chart-canvas">
-              <div className="flex justify-end gap-4 mb-4 text-xs font-bold">
-                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-emerald-500 rounded-sm"></div> Кирувчи</div>
-                <div className="flex items-center gap-1"><div className="w-3 h-3 bg-blue-500 rounded-sm"></div> Чиқувчи</div>
+        {/* Lower Section: Status & Dealers */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Status Distribution */}
+          <div className={`${department === 'Operatorlar' ? 'lg:col-span-12 xl:col-span-12 grid grid-cols-1 xl:grid-cols-2 gap-8' : 'lg:col-span-12 xl:col-span-8'}`}>
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className={`p-8 rounded-[40px] shadow-sm border border-slate-100/50 ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white'}`}
+            >
+              <div className="flex items-center justify-between mb-10">
+                <h3 className="font-black text-xs uppercase tracking-widest opacity-60">Битимлар Ҳолати</h3>
+                <div className="px-3 py-1 bg-slate-50 dark:bg-slate-700 rounded-full text-[10px] font-black opacity-40">Барча бўлимлар</div>
               </div>
 
-              <div className="flex-1 flex items-end gap-4 pb-8 border-b border-slate-200 relative">
-                {/* Y-Axis Labels */}
-                <div className="absolute left-0 top-0 bottom-8 flex flex-col justify-between text-[10px] text-slate-400 pr-2 -translate-x-full border-r border-slate-200">
-                  <span>1600</span>
-                  <span>1200</span>
-                  <span>800</span>
-                  <span>400</span>
-                  <span>0</span>
+              <div className="flex flex-col md:flex-row items-center justify-around gap-10">
+                <div className="relative">
+                  <PieChart width={220} height={220}>
+                    <Pie
+                      data={stats.statusData}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={70}
+                      outerRadius={90}
+                      paddingAngle={8}
+                      dataKey="value"
+                    >
+                      {stats.statusData.map((_entry, index) => (
+                        <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} stroke="none" />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <p className="text-[10px] font-black opacity-30 uppercase">Жами</p>
+                    <p className="text-2xl font-black">{stats.total}</p>
+                  </div>
                 </div>
 
-                {CALLS_DATA.map((item) => {
-                  const maxVal = 1648;
-                  const inHeight = (item.incoming / maxVal) * 100;
-                  const outHeight = (item.outgoing / maxVal) * 100;
-
-                  return (
-                    <div key={item.name} className="flex-1 flex flex-col items-center gap-1 group relative h-full justify-end">
-                      <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-white px-2 py-1 rounded text-[10px] whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity z-10 shadow-lg">
-                        К: {item.incoming} | Ч: {item.outgoing}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6 flex-1">
+                  {stats.statusData.map((status, i) => (
+                    <div key={status.name} className="flex items-center gap-4">
+                      <div className="w-3 h-3 rounded-full" style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }} />
+                      <div>
+                        <p className="text-[10px] font-black opacity-80 uppercase truncate max-w-[150px]">{status.name}</p>
+                        <p className="text-sm font-black">{status.value} <span className="text-[10px] opacity-40 ml-1">Лидлар</span></p>
                       </div>
-
-                      <div className="flex items-end gap-1 w-full max-w-[60px] h-full">
-                        <div
-                          className="bg-emerald-500 rounded-t-lg w-1/2 transition-all duration-700 shadow-sm"
-                          style={{ height: `${Math.max(inHeight, 2)}%` }}
-                        ></div>
-                        <div
-                          className="bg-blue-500 rounded-t-lg w-1/2 transition-all duration-700 shadow-sm"
-                          style={{ height: `${Math.max(outHeight, 2)}%` }}
-                        ></div>
-                      </div>
-                      <span className="absolute top-full mt-2 text-[10px] font-bold text-slate-500 rotate-[-45deg] origin-top-left whitespace-nowrap">
-                        {item.name.split(' ')[0]}
-                      </span>
                     </div>
-                  );
-                })}
-
-                <div className="absolute inset-0 pointer-events-none flex flex-col justify-between py-2">
-                  <div className="w-full border-t border-slate-100"></div>
-                  <div className="w-full border-t border-slate-100"></div>
-                  <div className="w-full border-t border-slate-100"></div>
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-12 overflow-x-auto rounded-xl border border-slate-100">
-              <table className="w-full text-left text-sm text-slate-600 border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200">
-                    <th className="py-3 px-4 font-bold">Менежер</th>
-                    <th className="py-3 px-4 font-bold text-emerald-600">Кирувчи</th>
-                    <th className="py-3 px-4 font-bold text-blue-600">Чиқувчи</th>
-                    <th className="py-3 px-4 font-bold">Жами</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {CALLS_DATA.map((item) => (
-                    <tr key={item.name} className="border-b border-slate-100 hover:bg-slate-50 transition-colors">
-                      <td className="py-3 px-4 text-slate-900 font-medium">{item.name}</td>
-                      <td className="py-3 px-4">{item.incoming}</td>
-                      <td className="py-3 px-4">{item.outgoing}</td>
-                      <td className="py-3 px-4 text-slate-900 font-bold">{item.total}</td>
-                    </tr>
                   ))}
-                </tbody>
-              </table>
-            </div>
-          </motion.div>
-        </div>
-
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            className="bg-white/90 border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-sm"
-            id="deal-status-chart-container"
-          >
-            <h3 className="text-xl font-bold text-slate-800 mb-6">Битимлар ҳолати</h3>
-            <div className="h-[300px] w-full relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={PIE_DATA}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={85}
-                    paddingAngle={5}
-                    dataKey="value"
-                    labelLine={false}
-                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                    isAnimationActive={true}
-                  >
-                    {PIE_DATA.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'white', borderColor: '#e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                  />
-                  <Legend layout="horizontal" verticalAlign="bottom" align="center" iconType="circle" />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-[60%] text-center pointer-events-none">
-                <span className="block text-3xl font-black text-slate-800">206</span>
-                <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Жами битим</span>
+                </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white/90 border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-sm"
-            id="pipeline-chart-container"
-          >
-            <h3 className="text-xl font-bold text-slate-800 mb-6">Сотувлар воронкаси</h3>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={PIPELINE_DATA.filter(d => d.count > 0)}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={85}
-                    paddingAngle={5}
-                    dataKey="count"
-                    isAnimationActive={true}
-                    label={({ percent }) => `${(percent * 100).toFixed(0)}%`}
-                  >
-                    {PIPELINE_DATA.filter(d => d.count > 0).map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <Tooltip
-                    contentStyle={{ backgroundColor: 'white', borderColor: '#e2e8f0', borderRadius: '12px', boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)' }}
-                  />
-                  <Legend iconType="circle" layout="horizontal" verticalAlign="bottom" align="center" />
-                </PieChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
+            {department === 'Operatorlar' && (
+              <motion.div
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                className={`p-8 rounded-[40px] shadow-sm border border-slate-100/50 ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white'}`}
+              >
+                <div className="flex items-center justify-between mb-8">
+                  <h3 className="font-black text-xs uppercase tracking-widest opacity-60">Қўнғироқлар Ҳисоботи</h3>
+                  <div className="px-3 py-1 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-full text-[10px] font-black uppercase tracking-tighter">Ойлик жами</div>
+                </div>
+
+                <div className="h-[220px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={stats.callsData}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={darkMode ? "#334155" : "#f1f5f9"} />
+                      <XAxis
+                        dataKey="name"
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 10, fontWeight: 700, opacity: 0.5, fill: darkMode ? '#94a3b8' : '#64748b' }}
+                      />
+                      <YAxis
+                        axisLine={false}
+                        tickLine={false}
+                        tick={{ fontSize: 10, fontWeight: 700, opacity: 0.5, fill: darkMode ? '#94a3b8' : '#64748b' }}
+                      />
+                      <Tooltip
+                        contentStyle={{ borderRadius: '20px', border: 'none', background: darkMode ? '#1e293b' : '#ffffff', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
+                        cursor={{ fill: 'transparent' }}
+                      />
+                      <Bar
+                        dataKey="value"
+                        fill={COLORS.blue}
+                        radius={[10, 10, 0, 0]}
+                        barSize={40}
+                        animationDuration={1500}
+                      />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </motion.div>
+            )}
+          </div>
+
+
+          {/* Brands List */}
+          <div className="lg:col-span-12 xl:col-span-4">
+            <motion.div
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              className={`p-6 rounded-[40px] h-full shadow-sm border border-slate-100/50 ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white'}`}
+            >
+              <div className="flex items-center justify-between mb-8">
+                <h3 className="font-black text-xs uppercase tracking-widest opacity-60">
+                  {department === 'Барчаси' ? 'Диллерлар' : department} Рейтинги
+                </h3>
+                <Trophy size={16} className="text-yellow-500" />
+              </div>
+              <div className="space-y-6">
+                {stats.sortedDealers.map((dealer, i) => (
+                  <div key={dealer.name} className="space-y-2">
+                    <div className="flex items-center justify-between text-xs font-black">
+                      <span className="opacity-80 truncate max-w-[200px]">{dealer.name}</span>
+                      <span>{dealer.count}</span>
+                    </div>
+                    <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${(dealer.count / (stats.sortedDealers[0]?.count || 1)) * 100}%` }}
+                        transition={{ duration: 1.5, delay: i * 0.1 }}
+                        className="h-full rounded-full"
+                        style={{ backgroundColor: CHART_COLORS[i % CHART_COLORS.length] }}
+                      />
+                    </div>
+                  </div>
+                ))}
+                {stats.sortedDealers.length === 0 && (
+                  <p className="text-center py-10 opacity-40 italic font-bold">Маълумот топилмади</p>
+                )}
+              </div>
+            </motion.div>
+          </div>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-            className="bg-white/90 border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-sm"
-            id="companies-stats"
-          >
-            <h3 className="text-xl font-bold text-slate-800 mb-6">Диллерларга йўналтирилган битимлар</h3>
-            <div className="space-y-4">
-              {COMPANY_STATS.map((company, index) => (
-                <div key={company.name} className="flex items-center justify-between p-4 rounded-2xl bg-slate-50 hover:bg-slate-100 transition-all shadow-sm border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-black text-sm">
-                      {index + 1}
-                    </div>
-                    <span className="font-bold text-slate-700">{company.name}</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <div className="w-32 bg-slate-200 h-2 rounded-full overflow-hidden hidden sm:block">
-                      <div
-                        className="bg-blue-500 h-full rounded-full"
-                        style={{ width: `${(company.count / 4) * 100}%` }}
-                      ></div>
-                    </div>
-                    <span className="text-slate-900 font-black font-mono">{company.count} та</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white/90 border border-slate-200 rounded-3xl p-6 shadow-xl backdrop-blur-sm"
-            id="detailed-stats"
-          >
-            <h3 className="text-xl font-bold text-slate-800 mb-6">Битимлар ҳолати</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {PIPELINE_DATA.map((item) => (
-                <div key={item.name} className="p-5 rounded-2xl border border-slate-100 bg-white shadow-sm hover:shadow-md hover:border-slate-200 transition-all group">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="w-3 h-3 rounded-full ring-4 ring-slate-50" style={{ backgroundColor: item.color }}></div>
-                    <span className="text-sm font-bold text-slate-500">{item.name}</span>
-                  </div>
-                  <div className="text-3xl font-black text-slate-800 font-mono group-hover:text-blue-600 transition-colors">{item.count}</div>
-                </div>
-              ))}
-            </div>
-          </motion.div>
-        </div>
-
-        <footer className="mt-12 pt-8 border-t border-slate-200 text-center text-slate-500 text-sm font-medium">
-          <p>&copy; 2024 Аналитика Дашборд. Барча ҳуқуқлар ҳимояланган.</p>
+        {/* Footer */}
+        <footer className="mt-12 py-8 border-t border-slate-200/50 flex flex-col md:flex-row items-center justify-between gap-4 opacity-40 text-[10px] font-black uppercase tracking-widest">
+          <p>TIZIM FAOL. 2026.FINAL.MARKET.REPORT</p>
+          <p>© 2026 Савдо Аналитикаси Платформаси</p>
         </footer>
       </div>
     </div>
   );
 }
 
-function SummaryCard({ id, title, value, icon, trend, trendUp }: { id: string, title: string, value: string, icon: ReactNode, trend: string, trendUp: boolean }) {
+function KPICard({ title, value, unit, percent, color, darkMode }: { title: string, value: string, unit?: string, percent?: string, color: string, darkMode?: boolean }) {
   return (
     <motion.div
-      id={id}
-      whileHover={{ y: -8, scale: 1.02 }}
-      className="bg-white/95 border border-slate-100 rounded-3xl p-6 shadow-lg backdrop-blur-sm hover:shadow-2xl transition-all duration-300"
+      whileHover={{ y: -5, scale: 1.02 }}
+      className={`p-5 rounded-[24px] relative overflow-hidden shadow-sm border border-slate-100/50 transition-all duration-300 ${darkMode ? 'bg-slate-800/50 border-slate-700' : 'bg-white'}`}
     >
-      <div className="flex items-start justify-between">
-        <div className="p-3 bg-slate-50 rounded-2xl shadow-inner">
-          {icon}
-        </div>
-        <div className={`flex items-center gap-1 text-xs font-black px-2 py-1 rounded-full ${trendUp ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-          {trendUp ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-          {trend}
-        </div>
+      <div className="absolute left-0 top-1/4 bottom-1/4 w-1.5 rounded-r-lg" style={{ backgroundColor: color }}></div>
+      <p className="text-[10px] font-black opacity-40 uppercase mb-2 tracking-tighter">{title}</p>
+      <div className="flex items-baseline gap-1">
+        <h4 className="text-3xl font-black tracking-tighter">{value}</h4>
+        {unit && <span className="text-[10px] font-black opacity-30">{unit}</span>}
       </div>
-      <div className="mt-4">
-        <p className="text-sm font-bold text-slate-400 mb-1 uppercase tracking-wider">{title}</p>
-        <h4 className="text-3xl font-black text-slate-800 font-mono tracking-tight">{value}</h4>
-      </div>
+      {percent && (
+        <div className="mt-3 flex items-center gap-1.5">
+          <div className="h-1 flex-1 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-full bg-slate-300" style={{ width: percent }}></div>
+          </div>
+          <span className="text-[10px] font-black opacity-60">{percent}</span>
+        </div>
+      )}
     </motion.div>
   );
 }
